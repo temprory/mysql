@@ -107,10 +107,10 @@ func (mgr *MysqlMgr) Get(tag string, args ...interface{}) *Mysql {
 	return pool[uint32(idx)%uint32(len(pool))]
 }
 
-func (mgr *MysqlMgr) ForEach(cb func(*Mysql)) {
-	for _, pool := range mgr.instances {
-		for _, rds := range pool {
-			cb(rds)
+func (mgr *MysqlMgr) ForEach(cb func(string, int, *Mysql)) {
+	for tag, pool := range mgr.instances {
+		for idx, m := range pool {
+			cb(tag, idx, m)
 		}
 	}
 }

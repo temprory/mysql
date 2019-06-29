@@ -22,6 +22,7 @@ type MysqlConf struct {
 type Mysql struct {
 	db     *gorm.DB
 	ticker *time.Ticker
+	Conf   MysqlConf
 }
 
 func (msql *Mysql) OrmDB() *gorm.DB {
@@ -67,7 +68,7 @@ func NewMysql(conf MysqlConf) *Mysql {
 		db.DB().SetMaxIdleConns(conf.IdleSize)
 	}
 
-	msql := &Mysql{db, time.NewTicker(conf.keepaliveInterval)}
+	msql := &Mysql{db: db, ticker: time.NewTicker(conf.keepaliveInterval), Conf: conf}
 
 	safeGo(func() {
 		for {

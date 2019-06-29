@@ -2,12 +2,15 @@ package mysql
 
 import (
 	"database/sql"
+	"fmt"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jinzhu/gorm"
+	"sort"
 	"time"
 )
 
 type MysqlConf struct {
+	ID                string `json:"ID"`
 	ConnString        string `json:"ConnString"` //user:password@tcp(localhost:5555)/dbname
 	EncryptKey        string `json:"EncryptKey"`
 	PoolSize          int    `json:"PoolSize"`
@@ -80,6 +83,60 @@ func NewMysql(conf MysqlConf) *Mysql {
 	logInfo("NewMysql Connect To Mysql Success")
 
 	return msql
+}
+
+type MysqlMgrConf map[string][]MysqlConf
+
+type MysqlMgr struct {
+	instances map[string][]*Mysql
+}
+
+func (mgr *MysqlMgr) Get(tag string, args ...interface{}) *Mysql {
+	pool, ok := mgr.instances[tag]
+	if !ok {
+		return nil
+	}
+	idx := uint64(0)
+	if len(args) > 0 {
+		if i, ok := args[0].(int); ok {
+			idx = uint64(i)
+		} else {
+			idx = hash(fmt.Sprintf("%v", args[0]))
+		}
+	}
+	return pool[uint32(idx)%uint32(len(pool))]
+}
+
+func (mgr *MysqlMgr) ForEach(cb func(*Mysql)) {
+	for _, pool := range mgr.instances {
+		for _, rds := range pool {
+			cb(rds)
+		}
+	}
+}
+
+func NewMysqlMgr(mgrConf MysqlMgrConf) *MysqlMgr {
+	mgr := &MysqlMgr{
+		instances: map[string][]*Mysql{},
+	}
+
+	total := 0
+	for tag, confs := range mgrConf {
+		sort.Slice(confs, func(i, j int) bool {
+			return confs[i].ID > confs[j].ID
+		})
+		for _, conf := range confs {
+			mgr.instances[tag] = append(mgr.instances[tag], NewMysql(conf))
+			total++
+		}
+
+	}
+
+	if total == 0 {
+		panic("invalid MysqlMgrConf, 0 config")
+	}
+
+	return mgr
 }
 
 func ClearTransaction(tx *sql.Tx) error {
